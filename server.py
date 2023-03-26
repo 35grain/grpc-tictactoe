@@ -6,39 +6,42 @@ import game_pb2
 import game_pb2_grpc
 from concurrent import futures
 
-node_ids = [1, 2, 3]
-node_addresses = {1: 'localhost:20048', 2: 'localhost:20049', 3: 'localhost:20050'}
-
 class GameServicer(game_pb2_grpc.GameServicer):
-    def __init__(self, node_id):
+    def __init__(self, node_addresses, node_id):
+        self.node_addresses = node_addresses
+        self.node_ids = list(self.node_addresses.keys())
         self.node_id = node_id
+
         self.board = None
+        self.board_timestamps = None
         self.game_active = False
         self.game_master = None
         self.players = {'X': None, 'O': None}
         self.turn = None
-        self.synchronizing = False
         self.election = {'id': 0, 'leader': None, 'announced': False}
 
     def StartGame(self, request, context):
         if not self.game_active:
             if self.game_master == self.node_id:
-                players = node_ids.copy()
+                players = self.node_ids.copy()
                 players.remove(self.node_id)
                 random.shuffle(players)
 
                 self.players['X'], self.players['O'] = players[0], players[1]
                 self.board = [""] * 9
+                self.board_timestamps = [0.0] * 9
                 self.turn = 'X'
-                for node in node_ids:
+                for node in self.node_ids:
                     try:
-                        channel = grpc.insecure_channel(node_addresses[node])
+                        channel = grpc.insecure_channel(self.node_addresses[node])
                         stub = game_pb2_grpc.GameStub(channel)
-                        response = stub.UpdateBoard(game_pb2.UpdateBoardRequest(node_id=self.node_id, board=self.board, players=self.players, turn=self.turn))
+                        response = stub.UpdateBoard(game_pb2.UpdateBoardRequest(node_id=self.node_id, board=self.board, board_timestamps=self.board_timestamps, players=self.players, turn=self.turn))
                         if not response.success:
                             return game_pb2.StartGameResponse(success=False, message=response.message)
                     except:
                         return game_pb2.StartGameResponse(success=False, message=f"Failed to reset game board for node {node}")
+                self.game_active = True
+                self.sOut(f"Game started by node {request.node_id}")
             elif self.node_id == request.node_id:
                 synchronization = self.initSynchronization()
                 if synchronization.success:
@@ -54,25 +57,42 @@ class GameServicer(game_pb2_grpc.GameServicer):
                     return game_pb2.StartGameResponse(success=False, message="Starting conditions unmet!")
                 
                 self.sOut("Starting game!")
-                for node in node_ids:
+                for node in self.node_ids:
                     if self.node_id != node or node == election.leader:
                         try:
-                            channel = grpc.insecure_channel(node_addresses[node])
+                            channel = grpc.insecure_channel(self.node_addresses[node])
                             stub = game_pb2_grpc.GameStub(channel)
                             response = stub.StartGame(game_pb2.StartGameRequest(node_id=self.node_id))
                             if not response.success:
                                 return game_pb2.StartGameResponse(success=False, message=response.message)
                         except:
                             return game_pb2.StartGameResponse(success=False, message=f"Failed to initiate game for node {node}")
-            self.game_active = True
-            self.sOut(f"Game started by node {request.node_id}")
+                if self.node_id != election.leader:
+                    self.game_active = True
+                    self.sOut(f"Game started by node {request.node_id}")
+            else:
+                self.game_active = True
+                self.sOut(f"Game started by node {request.node_id}")
             return game_pb2.StartGameResponse(success=True)
         return game_pb2.StartGameResponse(success=False, message=f"Game already started on node {self.node_id}!")
+    
+    def getBoardState(self):
+        positions = []
+        for position, timestamp in zip(self.board, self.board_timestamps):
+            symbol = position if len(position) else "empty"
+            if timestamp != 0:
+                time = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
+                positions.append(f"{symbol}:{time}")
+            else:
+                positions.append(symbol)
+
+        return ", ".join(positions)
     
     def UpdateBoard(self, request, context):
         if self.game_master == request.node_id:
             new_board = self.board == None or request.board == [""] * 9
             self.board = request.board
+            self.board_timestamps = request.board_timestamps
             self.players = request.players
             self.turn = request.turn
 
@@ -80,11 +100,16 @@ class GameServicer(game_pb2_grpc.GameServicer):
                 self.sOut(request.message)
 
             if request.game_over:
+                self.board = None
+                self.board_timestamps = None
                 self.game_active = False
+                self.game_master = None
+                self.players = {'X': None, 'O': None}
+                self.turn = None
             else:
                 if not new_board:
                     self.sOut("New board state:")
-                    self.sOut(self.board)
+                    self.sOut(self.getBoardState())
                 for player, node in self.players.items():
                     if node == self.node_id:
                         if new_board:
@@ -134,13 +159,15 @@ class GameServicer(game_pb2_grpc.GameServicer):
     
     def SetSymbol(self, request, context):
         if self.game_active:
-            position = request.position - 1
-            symbol = request.symbol
-            node = request.node_id
             if self.game_master == self.node_id:
+                position = request.position - 1
+                symbol = request.symbol
+                node = request.node_id
+                timestamp = request.timestamp
                 if self.turn == symbol and node == self.players[symbol]:
                     if self.validMove(position, symbol):
                         self.board[position] = symbol
+                        self.board_timestamps[position] = timestamp
                         winner = self.checkCombination()
                         game_over = True if winner else False
                         if winner:
@@ -152,11 +179,11 @@ class GameServicer(game_pb2_grpc.GameServicer):
                         else:
                             message = f"Player {self.turn} sets symbol {symbol} at position {position}."
                         self.turn = 'O' if symbol == 'X' else 'X'
-                        for node in node_ids:
+                        for node in self.node_ids:
                             try:
-                                channel = grpc.insecure_channel(node_addresses[node])
+                                channel = grpc.insecure_channel(self.node_addresses[node])
                                 stub = game_pb2_grpc.GameStub(channel)
-                                response = stub.UpdateBoard(game_pb2.UpdateBoardRequest(node_id=self.node_id, board=self.board, players=self.players, turn=self.turn, game_over=game_over, message=message))
+                                response = stub.UpdateBoard(game_pb2.UpdateBoardRequest(node_id=self.node_id, board=self.board, board_timestamps=self.board_timestamps, players=self.players, turn=self.turn, game_over=game_over, message=message))
                                 if not response.success:
                                     return game_pb2.SetSymbolResponse(success=False, message=response.message)
                             except:
@@ -168,9 +195,9 @@ class GameServicer(game_pb2_grpc.GameServicer):
                     return game_pb2.SetSymbolResponse(success=False, message="Illegal turn!")
             elif self.node_id == request.node_id:
                 try:
-                    channel = grpc.insecure_channel(node_addresses[self.game_master])
+                    channel = grpc.insecure_channel(self.node_addresses[self.game_master])
                     stub = game_pb2_grpc.GameStub(channel)
-                    response = stub.SetSymbol(game_pb2.SetSymbolRequest(node_id=self.node_id, position=position, symbol=symbol, timestamp=time.time()))
+                    response = stub.SetSymbol(game_pb2.SetSymbolRequest(node_id=self.node_id, position=request.position, symbol=request.symbol, timestamp=request.timestamp))
                     if response.success:
                         return game_pb2.SetSymbolResponse(success=True)
                     else:
@@ -187,9 +214,9 @@ class GameServicer(game_pb2_grpc.GameServicer):
         self.sOut("Initiating clock synchronization")
 
         difference_sum = 0
-        for node in node_ids:
+        for node in self.node_ids:
             try:
-                channel = grpc.insecure_channel(node_addresses[node])
+                channel = grpc.insecure_channel(self.node_addresses[node])
                 stub = game_pb2_grpc.GameStub(channel)
                 self_time = time.time()
                 response = stub.GetTime(game_pb2.TimeRequest())
@@ -197,11 +224,11 @@ class GameServicer(game_pb2_grpc.GameServicer):
                 difference_sum += node_time - self_time
             except:
                 return game_pb2.SyncResponse(success=False, message=f"Unable to get time from node {node}")
-        difference_avg = difference_sum / len(node_ids)
+        difference_avg = difference_sum / len(self.node_ids)
         synchronized_time = time.time() + difference_avg
-        for node in node_ids:
+        for node in self.node_ids:
             try:
-                channel = grpc.insecure_channel(node_addresses[node])
+                channel = grpc.insecure_channel(self.node_addresses[node])
                 stub = game_pb2_grpc.GameStub(channel)
                 response = stub.Synchronize(game_pb2.SyncRequest(node_id=self.node_id, sync_time=synchronized_time))
             except:
@@ -214,22 +241,34 @@ class GameServicer(game_pb2_grpc.GameServicer):
         return game_pb2.SyncResponse(success=True, message="Time synchronized")
     
     def SetTime(self, request, context):
-        if self.game_master == request.node_id or self.node_id == request.node_id:
-            return game_pb2.SetTimeResponse(success=True)
-        return game_pb2.SetSymbolResponse(success=False, message="Illegal set-time request from non game-master node!")
-    
+        if self.game_active:
+            if self.node_id == request.node_id == request.target_node_id or (self.game_master == request.node_id and request.target_node_id == self.node_id):
+                return game_pb2.SetTimeResponse(success=True)
+            elif self.game_master == self.node_id:
+                try:
+                    channel = grpc.insecure_channel(self.node_addresses[request.target_node_id])
+                    stub = game_pb2_grpc.GameStub(channel)
+                    response = stub.SetTime(game_pb2.SetTimeRequest(node_id=self.node_id, target_node_id=request.target_node_id, time=request.time))
+                    if response.success:
+                        return game_pb2.SetTimeResponse(success=True)
+                    return game_pb2.SetTimeResponse(success=False, message=response.message)
+                except:
+                    return game_pb2.SetTimeResponse(success=False, message=f"Unable to set time of node {request.target_node_id}")
+            return game_pb2.SetTimeResponse(success=False, message=f"Only the game-master (node {self.game_master}) may change the internal clock of node {request.target_node_id}!")
+        return game_pb2.SetTimeResponse(success=False, message="Game has not started!")
+
     def getNextNodeId(self):
-        self_index = node_ids.index(self.node_id)
-        if self_index + 1 >= len(node_ids):
-            return node_ids[self_index + 1 - len(node_ids)]
-        return node_ids[self_index + 1]
+        self_index = self.node_ids.index(self.node_id)
+        if self_index + 1 >= len(self.node_ids):
+            return self.node_ids[self_index + 1 - len(self.node_ids)]
+        return self.node_ids[self_index + 1]
     
     def initElection(self):
         self.sOut("Initiating game-master election")
         next_node_id = self.getNextNodeId()
         election_id = self.election['id'] + 1
         try:
-            channel = grpc.insecure_channel(node_addresses[next_node_id])
+            channel = grpc.insecure_channel(self.node_addresses[next_node_id])
             stub = game_pb2_grpc.GameStub(channel)
             response = stub.Election(game_pb2.ElectionRequest(node_id=self.node_id, election_id=election_id, visited_nodes=[self.node_id]))
             if not response.success:
@@ -242,7 +281,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
 
         self.sOut(f"End of election. New game-master is node {self.election['leader']}. Announcing result.")
         try:
-            channel = grpc.insecure_channel(node_addresses[next_node_id])
+            channel = grpc.insecure_channel(self.node_addresses[next_node_id])
             stub = game_pb2_grpc.GameStub(channel)
             response = stub.ElectionResult(game_pb2.ElectionResultRequest(leader=self.election['leader'], visited_nodes=[self.node_id]))
             if not response.success:
@@ -258,10 +297,11 @@ class GameServicer(game_pb2_grpc.GameServicer):
     def Election(self, request, context):
         visited_nodes = request.visited_nodes
         if self.node_id not in visited_nodes:
+            self.election['id'] = request.election_id
             visited_nodes.append(self.node_id)
             next_node_id = self.getNextNodeId()
             try:
-                channel = grpc.insecure_channel(node_addresses[next_node_id])
+                channel = grpc.insecure_channel(self.node_addresses[next_node_id])
                 stub = game_pb2_grpc.GameStub(channel)
                 response = stub.Election(game_pb2.ElectionRequest(node_id=self.node_id, election_id=request.election_id, visited_nodes=visited_nodes))
                 if response.success:
@@ -282,7 +322,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
             visited_nodes.append(self.node_id)
             next_node_id = self.getNextNodeId()
             try:
-                channel = grpc.insecure_channel(node_addresses[next_node_id])
+                channel = grpc.insecure_channel(self.node_addresses[next_node_id])
                 stub = game_pb2_grpc.GameStub(channel)
                 response = stub.ElectionResult(game_pb2.ElectionResultRequest(leader=request.leader, visited_nodes=visited_nodes))
                 if response.success:
@@ -302,10 +342,13 @@ class GameServicer(game_pb2_grpc.GameServicer):
 
     def sOut(self, message):
         print(f"Node {self.node_id}> {message}")
-def serve(port, node_id, quit_event):
-    print(f"Starting server on port {port}")
+
+def serve(nodes, node_id, quit_event):
+    node_addresses = nodes
+    port = nodes[node_id].split(':')[-1]
+    print(f"Node {node_id}> Starting server on port {port}")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    game_pb2_grpc.add_GameServicer_to_server(GameServicer(node_id), server)
+    game_pb2_grpc.add_GameServicer_to_server(GameServicer(node_addresses, node_id), server)
 
     server.add_insecure_port('[::]:' + str(port))
     server.start()
@@ -314,4 +357,4 @@ def serve(port, node_id, quit_event):
         time.sleep(1)
 
     server.stop(0)
-    print("Server stopped")
+    print(f"Node {node_id}> Server stopped")

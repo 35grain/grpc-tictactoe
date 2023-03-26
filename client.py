@@ -1,4 +1,6 @@
 import grpc
+from datetime import datetime
+import time
 import game_pb2
 import game_pb2_grpc
 
@@ -20,22 +22,34 @@ def listBoard(stub, node_id):
 def setSymbol(stub, node_id):
     position = int(input(f"Node {node_id}> Enter position on board (1-9): "))
     symbol = input(f"Node {node_id}> Enter your symbol: ")
-    response = stub.SetSymbol(game_pb2.SetSymbolRequest(node_id=node_id, position=position, symbol=symbol))
+    response = stub.SetSymbol(game_pb2.SetSymbolRequest(node_id=node_id, position=position, symbol=symbol, timestamp=time.time()))
     if not response.success:
         sOut(node_id, response.message)
-        if response.message != "Game has not started!":
+        if response.message != "Game has not started!" and response.message != "Illegal turn!":
             setSymbol(stub, node_id)
 
+def timeStringToTimestamp(time):
+    today = datetime.today()
+    dt = datetime.combine(today, datetime.strptime(time, '%H:%M:%S').time())
+    return dt.timestamp()
+
 def setNodeTime(stub, node_id):
-    return
+    target_node = int(input(f"Node {node_id}> Target node ID: "))
+    time = input(f"Node {node_id}> Set time to <hh:mm:ss>: ")
+    response = stub.SetTime(game_pb2.SetTimeRequest(node_id=node_id, target_node_id=target_node, time=timeStringToTimestamp(time)))
+    if response.success:
+        sOut(node_id, f"Node {target_node} time set to {time}")
+    else:
+        sOut(node_id, response.message)
 
 def setTimeOut(stub, node_id):
     return
 
-def terminal(port, node_id, quit_event):
-    with grpc.insecure_channel('localhost:' + str(port)) as channel:
+def terminal(nodes, node_id, quit_event):
+    address = nodes[node_id]
+    with grpc.insecure_channel(address) as channel:
         stub = game_pb2_grpc.GameStub(channel)
-        print("Enter 'Start-game' to get started or 'Quit' to abort.")
+        print(f"Node {node_id}> Enter 'Start-game' to get started or 'Quit' to abort.")
         while not quit_event.is_set():
             command = input(f"Node {node_id}> ")
             if command == 'Start-game':
@@ -51,6 +65,6 @@ def terminal(port, node_id, quit_event):
             elif command == 'Quit':
                 quit_event.set()
             elif len(command):
-                print("Unknown command. Please try again!")
+                print(f"Node {node_id}> Unknown command. Please try again!")
             else:
                 continue

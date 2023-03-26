@@ -35,10 +35,11 @@ message ListBoardResponse {
 message UpdateBoardRequest {
     int32 node_id = 1;
     repeated string board = 2;
-    map <string, int32> players = 3;
-    string turn = 4;
-    bool game_over = 5;
-    string message = 6;
+    repeated float board_timestamps = 3;
+    map <string, int32> players = 4;
+    string turn = 5;
+    bool game_over = 6;
+    string message = 7;
 }
 
 message UpdateBoardResponse {
@@ -85,7 +86,8 @@ message SyncResponse {
 
 message SetTimeRequest {
     int32 node_id = 1;
-    float date_time = 2;
+    int32 target_node_id = 2;
+    float time = 3;
 }
 
 message SetTimeResponse {
