@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+service Game {
+    rpc StartGame (StartGameRequest) returns (StartGameResponse) {}
+    rpc ListBoard (ListBoardRequest) returns (ListBoardResponse) {}
+    rpc UpdateBoard (UpdateBoardRequest) returns (UpdateBoardResponse) {}
+    rpc ResetGame (ResetGameRequest) returns (ResetGameResponse) {}
+    rpc SetSymbol (SetSymbolRequest) returns (SetSymbolResponse) {}
+
+    rpc GetTime (TimeRequest) returns (TimeResponse) {}
+    rpc Synchronize (SyncRequest) returns (SyncResponse) {}
+    rpc SetTime (SetTimeRequest) returns (SetTimeResponse) {}
+
+    rpc Election (ElectionRequest) returns (ElectionResponse) {}
+    rpc ElectionResult (ElectionResultRequest) returns (ElectionResultResponse) {}
+}
+
+message StartGameRequest {
+    int32 node_id = 1;
+}
+
+message StartGameResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListBoardRequest {}
+
+message ListBoardResponse {
+    bool success = 1;
+    repeated string board = 2;
+    string message = 3;
+}
+
+message UpdateBoardRequest {
+    int32 node_id = 1;
+    repeated string board = 2;
+    map <string, int32> players = 3;
+    string turn = 4;
+    bool game_over = 5;
+    string message = 6;
+}
+
+message UpdateBoardResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ResetGameRequest {
+    int32 node_id = 1;
+}
+
+message ResetGameResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message SetSymbolRequest {
+    int32 node_id = 1;
+    int32 position = 2;
+    string symbol = 3;
+    float timestamp = 4;
+}
+
+message SetSymbolResponse {
+    bool success = 1;
+    string message = 3;
+}
+
+message TimeRequest {}
+
+message TimeResponse {
+    float node_time = 1;
+}
+
+message SyncRequest {
+    int32 node_id = 1;
+    float sync_time = 2;
+}
+
+message SyncResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message SetTimeRequest {
+    int32 node_id = 1;
+    float date_time = 2;
+}
+
+message SetTimeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ElectionRequest {
+    int32 node_id = 1;
+    int32 election_id = 2;
+    repeated int32 visited_nodes = 3;
+}
+
+message ElectionResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ElectionResultRequest {
+    int32 leader = 1;
+    repeated int32 visited_nodes = 2;
+}
+
+message ElectionResultResponse {
+    bool success = 1;
+    int32 leader = 2;
+    string message = 3;
+}
