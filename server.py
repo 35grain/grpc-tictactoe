@@ -3,7 +3,6 @@ import time
 import random
 import sys
 from datetime import datetime
-import pytz
 import game_pb2
 import game_pb2_grpc
 from concurrent import futures
@@ -248,8 +247,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
         try:
             import win32api
             
-            utc_tz = pytz.timezone('UTC')
-            dt = datetime.fromtimestamp(timestamp).astimezone(utc_tz)
+            dt = datetime.utcfromtimestamp(timestamp)
             win32api.SetSystemTime(dt.year, dt.month, dt.weekday(), dt.day, dt.hour, dt.minute, dt.second, 0)
             return True, ""
         except:
@@ -261,10 +259,8 @@ class GameServicer(game_pb2_grpc.GameServicer):
             import shlex
             
             dt = datetime.fromtimestamp(timestamp)
-            time_string = dt.isoformat()
-            # subprocess.call(shlex.split("timedatectl set-ntp false"))
-            subprocess.call(shlex.split("sudo date --utc -s '%s'" % time_string))
-            # subprocess.call(shlex.split("sudo hwclock -w"))
+            time_string = dt.strftime("%m%d%H%M%y.%S")
+            subprocess.call(shlex.split("sudo date '%s'" % time_string))
             return True, ""
         except:
             return False, f"Unable to set system time for node {self.node_id}"
