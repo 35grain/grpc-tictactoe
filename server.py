@@ -125,7 +125,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
     
     def ListBoard(self, request, context):
         if self.game_active:
-            return game_pb2.ListBoardResponse(success=True, board=self.board)
+            return game_pb2.ListBoardResponse(success=True, board=self.getBoardState())
         return game_pb2.ListBoardResponse(success=False, message="Game has not started!")
     
     def validMove(self, position, symbol):
@@ -164,6 +164,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
                 symbol = request.symbol
                 node = request.node_id
                 timestamp = request.timestamp
+                print(request.timestamp)
                 if self.turn == symbol and node == self.players[symbol]:
                     if self.validMove(position, symbol):
                         self.board[position] = symbol
@@ -177,7 +178,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
                             else:
                                 message = f"Game over! Player {winner} wins!"
                         else:
-                            message = f"Player {self.turn} sets symbol {symbol} at position {position}."
+                            message = f"Player {self.turn} sets symbol {symbol} at position {request.position}."
                         self.turn = 'O' if symbol == 'X' else 'X'
                         for node in self.node_ids:
                             try:

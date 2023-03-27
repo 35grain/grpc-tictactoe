@@ -28,7 +28,7 @@ message ListBoardRequest {}
 
 message ListBoardResponse {
     bool success = 1;
-    repeated string board = 2;
+    string board = 2;
     string message = 3;
 }
 
