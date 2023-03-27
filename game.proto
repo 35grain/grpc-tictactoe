@@ -35,7 +35,7 @@ message ListBoardResponse {
 message UpdateBoardRequest {
     int32 node_id = 1;
     repeated string board = 2;
-    repeated float board_timestamps = 3;
+    repeated double board_timestamps = 3;
     map <string, int32> players = 4;
     string turn = 5;
     bool game_over = 6;
@@ -60,7 +60,7 @@ message SetSymbolRequest {
     int32 node_id = 1;
     int32 position = 2;
     string symbol = 3;
-    float timestamp = 4;
+    double timestamp = 4;
 }
 
 message SetSymbolResponse {
@@ -71,12 +71,12 @@ message SetSymbolResponse {
 message TimeRequest {}
 
 message TimeResponse {
-    float node_time = 1;
+    double node_time = 1;
 }
 
 message SyncRequest {
     int32 node_id = 1;
-    float sync_time = 2;
+    double sync_time = 2;
 }
 
 message SyncResponse {
@@ -87,7 +87,7 @@ message SyncResponse {
 message SetTimeRequest {
     int32 node_id = 1;
     int32 target_node_id = 2;
-    float time = 3;
+    double time = 3;
 }
 
 message SetTimeResponse {

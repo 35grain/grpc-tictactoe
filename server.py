@@ -164,7 +164,6 @@ class GameServicer(game_pb2_grpc.GameServicer):
                 symbol = request.symbol
                 node = request.node_id
                 timestamp = request.timestamp
-                print(request.timestamp)
                 if self.turn == symbol and node == self.players[symbol]:
                     if self.validMove(position, symbol):
                         self.board[position] = symbol
