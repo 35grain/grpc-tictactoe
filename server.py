@@ -1,7 +1,9 @@
 import grpc
 import time
 import random
+import sys
 from datetime import datetime
+import pytz
 import game_pb2
 import game_pb2_grpc
 from concurrent import futures
@@ -238,12 +240,46 @@ class GameServicer(game_pb2_grpc.GameServicer):
         return game_pb2.SyncResponse(success=True)
 
     def Synchronize(self, request, context):
-        return game_pb2.SyncResponse(success=True, message="Time synchronized")
+        synchronized_time = request.sync_time
+        synchronized, message = self.setSystemTime(synchronized_time)
+        return game_pb2.SyncResponse(success=synchronized, message=message)
+    
+    def _winSetTime(self, timestamp):
+        try:
+            import win32api
+            
+            utc_tz = pytz.timezone('UTC')
+            dt = datetime.fromtimestamp(timestamp).astimezone(utc_tz)
+            win32api.SetSystemTime(dt.year, dt.month, dt.weekday(), dt.day, dt.hour, dt.minute, dt.second, 0)
+            return True, ""
+        except:
+            return False, f"Unable to set system time for node {self.node_id}. Perhaps player has unsufficient privileges?"
+
+    def _linuxSetTime(self, timestamp):
+        try:
+            import subprocess
+            import shlex
+            
+            dt = datetime.fromtimestamp(timestamp)
+            time_string = dt.isoformat()
+            # subprocess.call(shlex.split("timedatectl set-ntp false"))
+            subprocess.call(shlex.split("sudo date --utc -s '%s'" % time_string))
+            # subprocess.call(shlex.split("sudo hwclock -w"))
+            return True, ""
+        except:
+            return False, f"Unable to set system time for node {self.node_id}"
+    
+    def setSystemTime(self, timestamp):
+        if sys.platform == 'linux2' or sys.platform == 'linux':
+            return self._linuxSetTime(timestamp)
+        elif sys.platform == 'win32':
+            return self._winSetTime(timestamp)
     
     def SetTime(self, request, context):
         if self.game_active:
             if self.node_id == request.node_id == request.target_node_id or (self.game_master == request.node_id and request.target_node_id == self.node_id):
-                return game_pb2.SetTimeResponse(success=True)
+                success, message = self.setSystemTime(request.time)
+                return game_pb2.SetTimeResponse(success=success, message=message)
             elif self.game_master == self.node_id:
                 try:
                     channel = grpc.insecure_channel(self.node_addresses[request.target_node_id])
