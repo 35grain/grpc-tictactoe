@@ -270,7 +270,7 @@ class GameServicer(game_pb2_grpc.GameServicer):
             return False, f"Unable to set system time for node {self.node_id}"
     
     def setSystemTime(self, timestamp):
-        if sys.platform == 'linux2' or sys.platform == 'linux':
+        if sys.platform == 'linux2' or sys.platform == 'linux' or sys.platform == 'darwin':
             return self._linuxSetTime(timestamp)
         elif sys.platform == 'win32':
             return self._winSetTime(timestamp)
