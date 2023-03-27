@@ -29,11 +29,6 @@ class GameStub(object):
                 request_serializer=game__pb2.UpdateBoardRequest.SerializeToString,
                 response_deserializer=game__pb2.UpdateBoardResponse.FromString,
                 )
-        self.ResetGame = channel.unary_unary(
-                '/Game/ResetGame',
-                request_serializer=game__pb2.ResetGameRequest.SerializeToString,
-                response_deserializer=game__pb2.ResetGameResponse.FromString,
-                )
         self.SetSymbol = channel.unary_unary(
                 '/Game/SetSymbol',
                 request_serializer=game__pb2.SetSymbolRequest.SerializeToString,
@@ -82,12 +77,6 @@ class GameServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateBoard(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ResetGame(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -146,11 +135,6 @@ def add_GameServicer_to_server(servicer, server):
                     servicer.UpdateBoard,
                     request_deserializer=game__pb2.UpdateBoardRequest.FromString,
                     response_serializer=game__pb2.UpdateBoardResponse.SerializeToString,
-            ),
-            'ResetGame': grpc.unary_unary_rpc_method_handler(
-                    servicer.ResetGame,
-                    request_deserializer=game__pb2.ResetGameRequest.FromString,
-                    response_serializer=game__pb2.ResetGameResponse.SerializeToString,
             ),
             'SetSymbol': grpc.unary_unary_rpc_method_handler(
                     servicer.SetSymbol,
@@ -240,23 +224,6 @@ class Game(object):
         return grpc.experimental.unary_unary(request, target, '/Game/UpdateBoard',
             game__pb2.UpdateBoardRequest.SerializeToString,
             game__pb2.UpdateBoardResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def ResetGame(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Game/ResetGame',
-            game__pb2.ResetGameRequest.SerializeToString,
-            game__pb2.ResetGameResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

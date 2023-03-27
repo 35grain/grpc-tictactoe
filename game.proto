@@ -4,7 +4,6 @@ service Game {
     rpc StartGame (StartGameRequest) returns (StartGameResponse) {}
     rpc ListBoard (ListBoardRequest) returns (ListBoardResponse) {}
     rpc UpdateBoard (UpdateBoardRequest) returns (UpdateBoardResponse) {}
-    rpc ResetGame (ResetGameRequest) returns (ResetGameResponse) {}
     rpc SetSymbol (SetSymbolRequest) returns (SetSymbolResponse) {}
 
     rpc GetTime (TimeRequest) returns (TimeResponse) {}
@@ -43,15 +42,6 @@ message UpdateBoardRequest {
 }
 
 message UpdateBoardResponse {
-    bool success = 1;
-    string message = 2;
-}
-
-message ResetGameRequest {
-    int32 node_id = 1;
-}
-
-message ResetGameResponse {
     bool success = 1;
     string message = 2;
 }
