@@ -260,7 +260,8 @@ class GameServicer(game_pb2_grpc.GameServicer):
             
             dt = datetime.fromtimestamp(timestamp)
             time_string = dt.isoformat()
-            subprocess.call(shlex.split("sudo date -s '%s'" % time_string))
+            subprocess.call(shlex.split("sudo timedatectl set-ntp false"))
+            subprocess.call(shlex.split("sudo date --utc -s '%s'" % time_string))
             return True, ""
         except:
             return False, f"Unable to set system time for node {self.node_id}"
