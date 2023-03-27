@@ -259,6 +259,18 @@ class GameServicer(game_pb2_grpc.GameServicer):
             import shlex
             
             dt = datetime.fromtimestamp(timestamp)
+            time_string = dt.isoformat()
+            subprocess.call(shlex.split("sudo date -s '%s'" % time_string))
+            return True, ""
+        except:
+            return False, f"Unable to set system time for node {self.node_id}"
+
+    def _macSetTime(self, timestamp):
+        try:
+            import subprocess
+            import shlex
+            
+            dt = datetime.fromtimestamp(timestamp)
             time_string = dt.strftime("%m%d%H%M%y.%S")
             subprocess.call(shlex.split("sudo date '%s'" % time_string))
             return True, ""
@@ -266,8 +278,10 @@ class GameServicer(game_pb2_grpc.GameServicer):
             return False, f"Unable to set system time for node {self.node_id}"
     
     def setSystemTime(self, timestamp):
-        if sys.platform == 'linux2' or sys.platform == 'linux' or sys.platform == 'darwin':
+        if sys.platform == 'linux2' or sys.platform == 'linux':
             return self._linuxSetTime(timestamp)
+        elif sys.platform == 'darwin':
+            return self._macSetTime(timestamp)
         elif sys.platform == 'win32':
             return self._winSetTime(timestamp)
     
